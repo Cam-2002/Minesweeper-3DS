@@ -11,7 +11,8 @@
 // Define global variables
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240
-bool dispGameScreen = false, gameSetup = false, hasDiscovered = false, flagmode = false, gameover=false, youwin=false, debug=false;
+#define VERSION 11
+bool dispGameScreen = false, gameSetup = false, hasDiscovered = false, flagmode = false, gameover=false, youwin=false, debug=false, debug_ever=false;
 int difficultyOption = 0, flagstate = 0, flags = 0, debugscreen = 0, debugseedselector = 0, bombs = 0, firstTileX=-1, firstTileY=-1;
 long long int currentSeed = 0, start_time = 0, end_time = 0;
 int map[24][24], tapmap[sizeof(map)/sizeof(map[0])][sizeof(map[0])/sizeof(map[0][0])];
@@ -23,6 +24,8 @@ void delay(int frames){
 }
 
 void draw_menu(){
+	printf("\x1b[2;2HMINESWEEPER FOR 3DS BY KAM (v%d)\x1b[3;2HPRESS START TO EXIT\x1b[4;2HPRESS SELECT TO RESET\x1b[5;2HPRESS ANYTHING TO FLAG", VERSION);
+	if(debug_ever) printf("\x1b[6;2HDEBUG USED");
 	debugscreen = 0;
 	if(gameover) printf("\x1b[10;6H  GAME OVER");
 	if(youwin) printf("\x1b[10;6H  YOU WIN!");
@@ -33,7 +36,10 @@ void draw_menu(){
 	gfxFlushBuffers();
 }
 
+//draws debug screen / menu
 void draw_debug(){
+	printf("\x1b[2;2HMINESWEEPER FOR 3DS BY KAM (v%d)\x1b[3;2HPRESS START TO EXIT\x1b[4;2HPRESS SELECT TO RESET\x1b[5;2HPRESS ANYTHING TO FLAG", VERSION);
+	if(debug_ever) printf("\x1b[6;2HDEBUG USED");
 	debugscreen = 1;
 	if(dispGameScreen){
 		printf("\x1b[10;6H  SEED = %020lld", currentSeed);
@@ -199,7 +205,7 @@ int main(int argc, char **argv){
 	consoleInit(GFX_TOP, NULL);
 
 	//Print text
-	printf("\x1b[2;2HMINESWEEPER FOR 3DS BY KAM\x1b[3;2HPRESS START TO EXIT\x1b[4;2HPRESS SELECT TO RESET\x1b[5;2HPRESS ANYTHING TO FLAG");
+	printf("\x1b[2;2HMINESWEEPER FOR 3DS BY KAM (v%d)\x1b[3;2HPRESS START TO EXIT\x1b[4;2HPRESS SELECT TO RESET\x1b[5;2HPRESS ANYTHING TO FLAG", VERSION);
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 
@@ -248,6 +254,7 @@ int main(int argc, char **argv){
 		//printf("\x1b[3;2H%03d; %03d; %lld; %d", touch.px, touch.py, time(0), flagmode ? 1:0);
 		if((kHeld & (KEY_L | KEY_R)) && (kDown & KEY_SELECT)){
 			debug=!debug;
+			debug_ever = true;
 			clear_menu();
 		}
 
@@ -324,10 +331,10 @@ int main(int argc, char **argv){
 			C2D_TextBufClear(bombsBuf);
 			char buf[64];
 			C2D_Text bombsText;
-			sprintf(buf, "Bombs = %d, Time = %d:%02d", bombs-flags, (int)floor((float)(end_time-start_time)/60), (int)(end_time-start_time)%60);
+			sprintf(buf, "MINES = %d, TIME = %d:%02d", bombs-flags, (int)floor((float)(end_time-start_time)/60), (int)(end_time-start_time)%60);
 			C2D_TextParse(&bombsText, bombsBuf, buf);
 			C2D_TextOptimize(&bombsText);
-			C2D_DrawText(&bombsText, C2D_AtBaseline | C2D_WithColor, 4, 232, 0.5, 0.5f, 0.5f, clrLightGrey);
+			C2D_DrawText(&bombsText, C2D_AtBaseline | C2D_WithColor, 4, 232, 0.5, 0.45f, 0.45f, clrLightGrey);
 
 			if(0 < touch.px && touch.px < 30 && 0 < touch.py && touch.py < 30 && flagstate == 0){
 				flagmode = !flagmode;
