@@ -11,8 +11,9 @@
 // Define global variables
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240
-bool dispGameScreen = false, gameSetup = false, hasDiscovered = false, flagmode = false, gameover=false, youwin=false;
-int difficultyOption = 0, flagstate = 0, start_time = 0, end_time = 0, flags = 0;
+bool dispGameScreen = false, gameSetup = false, hasDiscovered = false, flagmode = false, gameover=false, youwin=false, debug=false;
+int difficultyOption = 0, flagstate = 0, flags = 0, debugscreen = 0, debugseedselector = 0, bombs = 0, firstTileX=-1, firstTileY=-1;
+long long int currentSeed = 0, start_time = 0, end_time = 0;
 int map[24][24], tapmap[sizeof(map)/sizeof(map[0])][sizeof(map[0])/sizeof(map[0][0])];
 C3D_RenderTarget* gfxBottomScreen;
 u32 clrWhite, clrLightGrey, clrGrey, clrDarkGrey, clrBlack, clrGreen, clrRed, clrBlue;
@@ -22,18 +23,66 @@ void delay(int frames){
 }
 
 void draw_menu(){
-	if(difficultyOption == 0) printf("\x1b[13;6H> SMALL\x1b[14;6H  MEDIUM\x1b[15;6H  LARGE");
-	if(difficultyOption == 1) printf("\x1b[13;6H  SMALL\x1b[14;6H> MEDIUM\x1b[15;6H  LARGE");
-	if(difficultyOption == 2) printf("\x1b[13;6H  SMALL\x1b[14;6H  MEDIUM\x1b[15;6H> LARGE");
+	debugscreen = 0;
 	if(gameover) printf("\x1b[10;6H  GAME OVER");
 	if(youwin) printf("\x1b[10;6H  YOU WIN!");
 	if(end_time-start_time>0) printf("\x1b[11;6H  TIME = %d:%02d", (int)floor((float)(end_time-start_time)/60), (int)(end_time-start_time)%60);
+	printf("\x1b[13;6H  SMALL\x1b[14;6H  MEDIUM\x1b[15;6H  LARGE");
+	if(debug) printf("\x1b[16;6H  DEBUG VARS");
+	printf("\x1b[%d;6H> ",13+difficultyOption);
 	gfxFlushBuffers();
+}
+
+void draw_debug(){
+	debugscreen = 1;
+	if(dispGameScreen){
+		printf("\x1b[10;6H  SEED = %020lld", currentSeed);
+		printf("\x1b[11;6H                               ");
+		printf("\x1b[11;%dH^", 34-debugseedselector);
+		printf("\x1b[12;6H  firstTileX = %d              ", firstTileX);
+		printf("\x1b[13;6H  firstTileY = %d              ", firstTileY);
+		printf("\x1b[14;6H  difficultyOption = %d        ", difficultyOption);
+		printf("\x1b[15;6H  flagstate = %d               ", flagstate);
+		printf("\x1b[16;6H  start_time = %lld            ", start_time);
+		printf("\x1b[17;6H  end_time = %lld              ", end_time);
+		printf("\x1b[18;6H  flags = %d                   ", flags);
+		printf("\x1b[19;6H  bombs = %d                   ", bombs);
+		printf("\x1b[20;6H  dispGameScreen = %s          ", dispGameScreen?"true":"false");
+		printf("\x1b[21;6H  gameSetup = %s               ", gameSetup?"true":"false");
+		printf("\x1b[22;6H  hasDiscovered = %s           ", hasDiscovered?"true":"false");
+		printf("\x1b[23;6H  flagmode = %s                ", flagmode?"true":"false");
+		printf("\x1b[24;6H  gameover = %s                ", gameover?"true":"false");
+		printf("\x1b[25;6H  youwin = %s                  ", youwin?"true":"false");
+
+		printf("\x1b[27;6H  PRESS A TO SET SEED");
+	}else{
+		printf("\x1b[10;6H  SEED = %020lld", currentSeed);
+		printf("\x1b[11;6H                               ");
+		printf("\x1b[11;%dH^", 34-debugseedselector);
+		printf("\x1b[12;6H  start_time = %lld            ", start_time);
+		printf("\x1b[13;6H  end_time = %lld              ", end_time);
+		printf("\x1b[14;6H  gameover = %s                ", gameover?"true":"false");
+		printf("\x1b[15;6H  youwin = %s                  ", youwin?"true":"false");
+
+		printf("\x1b[27;6H  PRESS A TO SET SEED");
+		printf("\x1b[28;6H  PRESS SELECT TO RETURN TO MENU");
+	}
 }
 
 void hide_menu(){
 	printf("\x1b[10;6H                 ");
 	printf("\x1b[11;6H                 ");
+}
+
+void clear_menu(){
+	for(int i=10; i<30; i++){
+		printf("\x1b[%d;6H                                                 ", i);
+	}
+}
+
+void setSeed(long long int seed){
+	srand(seed);
+	currentSeed = seed;
 }
 
 void setup_game(){
@@ -80,6 +129,12 @@ void setup_game(){
 	gameSetup = true;
 }
 
+long long int tenpow(int pow){
+	long long int result = 1;
+	for(int i=0; i<pow; i++) result*=10;
+	return result;
+}
+
 void reset_game(){
 	dispGameScreen = false;
 	gameSetup = false;
@@ -88,6 +143,8 @@ void reset_game(){
 	gameover = false;
 	youwin = false;
 	flags = 0;
+	firstTileX = -1;
+	firstTileY = -1;
 	for(int i=0; i<sizeof(map)/sizeof(map[0]); i++){
 		for(int j=0; j<sizeof(map[i])/sizeof(map[i][0]); j++){
 			map[i][j] = -1;
@@ -99,6 +156,7 @@ void reset_game(){
 	C2D_SceneBegin(gfxBottomScreen);
 	//C2D_DrawRectangle(0, 0, 1, SCREEN_WIDTH, SCREEN_HEIGHT, clrBlack, clrBlack, clrBlack, clrBlack);
 	C3D_FrameEnd(0);
+	clear_menu();
 	draw_menu();
 }
 
@@ -118,7 +176,7 @@ int main(int argc, char **argv){
 	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
 	C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
 	C2D_Prepare();
-	srand(time(0));
+	setSeed(time(0));
 
 	//Define colors
 	u32 clrWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
@@ -175,6 +233,7 @@ int main(int argc, char **argv){
 
 		//hidKeysDown returns information about which buttons have been just pressed (and they weren't in the previous frame)
 		u32 kDown = hidKeysDown();
+		u32 kHeld = hidKeysHeld();
 
 		//Stop program if start is pressed
 		if (kDown & KEY_START) break;
@@ -187,30 +246,54 @@ int main(int argc, char **argv){
 
 		//Print the touch screen coordinates
 		//printf("\x1b[3;2H%03d; %03d; %lld; %d", touch.px, touch.py, time(0), flagmode ? 1:0);
-
+		if((kHeld & (KEY_L | KEY_R)) && (kDown & KEY_SELECT)){
+			debug=!debug;
+			clear_menu();
+		}
 
 		//If we are on the menu screen
-		if(!dispGameScreen){
+		if(!dispGameScreen && debugscreen==0){
 			if(kDown & KEY_UP) difficultyOption--;
 			if(kDown & KEY_DOWN) difficultyOption++;
-			if(difficultyOption<0) difficultyOption = 2;
-			if(difficultyOption>2) difficultyOption = 0;
+			if(difficultyOption<0) difficultyOption = 2+(debug?1:0);
+			if(difficultyOption>2+debug?1:0) difficultyOption = 0;
 			if(kDown & KEY_A){
-				dispGameScreen = true;
-				hide_menu();
-				continue;
-			}else draw_menu();
+				if(difficultyOption < 3){
+					dispGameScreen = true;
+					hide_menu();
+					continue;
+				}else{
+					clear_menu();
+					draw_debug();
+				}
+			}else if(debugscreen==0) draw_menu();
+		}
+		if(debugscreen==1){
+			if(kDown & KEY_LEFT) debugseedselector++;
+			if(kDown & KEY_RIGHT) debugseedselector--;
+			if(debugseedselector > 18) debugseedselector = 0;
+			if(debugseedselector < 0) debugseedselector = 18;
+			if(kDown & KEY_UP) currentSeed+=tenpow(debugseedselector);
+			if(kDown & KEY_DOWN) currentSeed-=tenpow(debugseedselector);
+			if(kDown & KEY_A) setSeed(currentSeed);
+			if(kDown & KEY_SELECT){
+				clear_menu();
+				draw_menu();
+			}else draw_debug();
 		}
 
 		//If we are in game
 		if(dispGameScreen){
 			if(!gameSetup) setup_game(); //Setup game by creating array of bombs
-			if(kDown & (KEY_L | KEY_R | KEY_ZL | KEY_ZR | KEY_B | KEY_A | KEY_DUP | KEY_DDOWN | KEY_DRIGHT | KEY_DLEFT | KEY_X | KEY_Y)) flagmode = !flagmode;
+			if((kDown & (KEY_B | KEY_A | KEY_DUP | KEY_DDOWN | KEY_DRIGHT | KEY_DLEFT)) && !debug) flagmode = !flagmode;
+			if(kDown & (KEY_L | KEY_R | KEY_ZL | KEY_ZR | KEY_X | KEY_Y)) flagmode = !flagmode;
+			if(debug) draw_debug();
 			//start rendering
 			C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 			C2D_TargetClear(gfxBottomScreen, clrBlack);
 			C2D_SceneBegin(gfxBottomScreen);
-			int offset_x = 80, offset_y = 48, width = 16, height = 16, rows = 8, cols = 10, bombs = 15;
+			int offset_x = 80, offset_y = 48, width = 16, height = 16, rows = 8, cols = 10;
+			bombs = 15;
 			float numscale = 0.5f;
 
 			if(difficultyOption==1){
@@ -267,6 +350,8 @@ int main(int argc, char **argv){
 						if(!flagmode && tapmap[i][j]!=2 && tapmap[i][j]!=3 && (map[i][j] != 9 || !hasDiscovered)){
 							tapmap[i][j]=1;
 							if(!hasDiscovered){
+								firstTileX = i+1;
+								firstTileY = j+1;
 								while(map[i][j]!=0) setup_game();
 								for(int i=0; i<sizeof(map)/sizeof(map[0]); i++){
 									for(int j=0; j<sizeof(map[i])/sizeof(map[i][0]); j++){
@@ -337,9 +422,8 @@ int main(int argc, char **argv){
 				}
 			}
 			C3D_FrameEnd(0);
-			if(kDown & KEY_SELECT) reset_game();
+			if((kDown & KEY_SELECT) && !(kHeld & (KEY_L | KEY_R))) reset_game();
 		}
-
 		// Flush and swap framebuffers
 		//gfxSwapBuffers();
 		//gfxFlushBuffers();
